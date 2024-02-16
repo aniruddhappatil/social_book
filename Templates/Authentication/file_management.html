@@ -1,0 +1,71 @@
+{% extends 'Authentication/basic2.html' %}
+{% load static %}
+{% block title %}Main Page{% endblock %}
+
+{% block content %}
+
+<div class="main-container">
+
+    {% if messages %}
+    {% for message in messages%}
+    <div class="alert alert-{{message.tags}}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    
+    <div class="login-box bg-white box-shadow border-radius-10">
+        <h4 class="text-center text-primary">Upload Files</h4>
+        <div class="login-wrap d-flex align-items-center flex-wrap justify-content-center">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input class="form-control form-control-lg" type="text" id="id_title" name="file_title" placeholder="Title" required><br>
+                <textarea id="id_description" name="file_desc" class="form-control form-control-lg" placeholder="Description"></textarea><br>
+                <input type="number" id="id_cost" name="cost" min="0" step="0.01" class="form-control form-control-lg" placeholder="Cost"><br>
+                <input type="number" id="id_year_published" name="year_published" class="form-control form-control-lg" placeholder="Year Published"><br>
+                <input type="file" id="id_file" name="file" class="form-control form-control-lg" placeholder="File Upload" required ><br>
+                <button type="submit" formmethod="post" href="/file_upload" class="btn btn-outline-primary btn-lg btn-block">Upload</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="main-container">
+    <h4 class="text-center text-primary">View Files</h4>
+        <div class="login-wrap d-flex align-items-center flex-wrap justify-content-center">
+            <form method="get" action="{% url 'get_all_files' %}">
+                <input type="text" class="form-control form-control-lg" name="query" placeholder="Search files"><br>
+                <button type="submit" class="btn btn-outline-primary btn-lg btn-block">Search</button><br>
+            </form><br>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <!--<th style="border: 1px solid #ddd;">Title</th>
+                        <th style="border: 1px solid #ddd;">Description</th>
+                        <th style="border: 1px solid #ddd;">File</th>-->
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>File</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in files %}
+                        <tr>
+                            <td align="center">{{ file.file_title }}</td>
+                            <td align="center">{{ file.file_desc }}</td>
+                            {% if file.file_type == 'pdf' %}
+                                <td><iframe src="{{ file.file.url }}" width="300" height="100" alt="{{ file.file_title}}"></iframe></td>
+                            {% elif file.file_type == 'image' %}
+                                <td><img src="{{ file.file.url }}" alt="{{ file.file_title }}" width="100"></td>
+                            {% else %}
+                                <!--Handle other file types if needed style="width: 100%; border-collapse: collapse; text-align: center;"-->
+                            {% endif %}
+                        </tr>
+                            {% empty %}
+                        <tr>
+                            <td colspan="3" align="center">No files found</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

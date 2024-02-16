@@ -1,0 +1,17 @@
+{% extends 'Authentication/basic.html' %}
+
+    <head>
+        {% block title %}Authentication using Template Inheritance{% endblock %}
+    </head>
+    <body>
+
+        {% if user.is_authenticated %}
+        <button type="submit"><a href="/signout">Sign Out</a></button>
+        <p>You have successfully logged in.</p>
+
+        {% else %}
+        <button type="submit"><a href="/signup">Sign Up</a></button>
+        <button type = "submit"><a href="/signin">Sign In</a></button>
+        {% endif %}
+    </body>
+</html>
