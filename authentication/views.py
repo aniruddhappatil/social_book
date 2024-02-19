@@ -21,12 +21,16 @@ from django.utils import timezone
 def user_list(request):
     if request.method == "POST":
         query = request.POST.get('query')
-        users = CustomUser.objects.filter(uname__icontains=query, public_visibility=True)
-    
-    #users = CustomUser.objects.filter(public_visibility=True)
-        return render(request, "authentication/user_list.html", {"users": users})
+        visibility = request.POST.get('visibility')
+        if visibility == "public":
+            public_visibility = True
+        else:
+            public_visibility = False
+        users = CustomUser.objects.filter(uname__icontains=query, public_visibility=public_visibility)
     else:
-        return render(request, "authentication/user_list.html")
+        users = CustomUser.objects.all()
+    #users = CustomUser.objects.filter(public_visibility=True)
+    return render(request, "authentication/user_list.html", {"users": users})
 
 def home(request):
     return render(request, "authentication/signin.html")

@@ -7,6 +7,11 @@
     <h4 class="text-center text-primary">User Search</h4><br>
     <form method="post" action="{% url 'user_list' %}">
         {% csrf_token %}
+        <label for="gender">Visibility</label>
+        <select class="form-control" id="visibility" name="visibility">
+            <option value="public">Public</option>
+            <option value="private">Private</option>
+        </select><br>
         <input type="text" class="form-control form-control-lg" name="query" placeholder="Search user here"><br>
         <button type="submit" class="btn btn-outline-primary btn-lg btn-block">Search</button><br>
     </form><br>
@@ -18,6 +23,7 @@
                 <th>First Name</th>
                 <th>Last Name</th>
                 <th>Date of Birth</th>
+                <th>Visibility</th>
             </tr>
         </thead>
         <tbody>
@@ -28,6 +34,7 @@
                 <td>{{ user.fname }}</td>
                 <td>{{ user.lname }}</td>
                 <td>{{ user.dob }}</td>
+                <td>{{ user.public_visibility }}</td>
             </tr>
             {% empty %}
             <tr>
