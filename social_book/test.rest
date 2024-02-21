@@ -1,0 +1,18 @@
+###Login
+POST http://127.0.0.1:8000/login_djoser
+Content-Type: application/json
+
+{"uname": "logincheck8", "password": "Logincheck@12345"}
+
+###Signup
+POST http://127.0.0.1:8000/signup_djoser
+Content-Type: application/json
+
+{"uname": "logincheck8", "password": "Logincheck@12345", "email": "logincheck8@gmail.com"}
+
+###Test Token
+GET http://127.0.0.1:8000/test_token_djoser
+Content-Type: application/json
+Authorization: Token 36ee05abd20634315397ef94d7bc44eef120759b
+
+{}

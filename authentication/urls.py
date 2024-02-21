@@ -1,5 +1,6 @@
 from . import views
-from django.urls import path
+from django.urls import include, path
+from djoser import views as djoser_views
 
 urlpatterns = [
     path("", views.home, name = "home"),

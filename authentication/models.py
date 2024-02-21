@@ -4,11 +4,6 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from .managers import CustomUserManager
 
-#class Item(models.Model):
-#    username = models.CharField(max_length = 20)
-#    pass1 = models.CharField(max_length = 20)
-
-
 class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     uname = models.CharField(max_length = 20, unique = True)

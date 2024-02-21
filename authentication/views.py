@@ -307,3 +307,63 @@ def send_verification_email(email, token):
         [email], #To
         fail_silently=False,
     )'''
+
+
+#---------------------------------------------------Djoser Code starts---------------------------------------------------#
+from rest_framework.decorators import api_view #execute views invoked using REST API's
+from rest_framework.response import Response # generate JSON response in response to REST API's
+from social_book.serializers import UserSerializer, FileUploadSerializer
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from django.shortcuts import get_object_or_404
+
+@api_view(['POST'])
+def login_djoser(request):
+    try:
+        user = CustomUser.objects.get(uname=request.data['uname'])
+    except CustomUser.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+    
+    if not user.check_password(request.data['password']):
+        return Response({"detail": "Password incorrect."}, status=status.HTTP_404_NOT_FOUND)
+    
+    token, created = Token.objects.get_or_create(user=user)
+    serializer = UserSerializer(instance=user)
+    return Response({"token": token.key, "user": serializer.data})
+
+@api_view(['POST'])
+def signup_djoser(request):
+    serializer = UserSerializer(data = request.data)
+    if serializer.is_valid():
+        serializer.save()
+        user = CustomUser.objects.get(uname=request.data['uname'], email=request.data['email'])
+        user.set_password(request.data['password'])
+        user.save()
+        token = Token.objects.create(user=user)
+        return Response({"token": token.key, "user": serializer.data})
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+from rest_framework.decorators import authentication_classes, permission_classes
+from rest_framework.authentication import SessionAuthentication, TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication, TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def test_token_djoser(request):
+    try:
+        user = CustomUser.objects.get(email=request.data['email'])
+    except CustomUser.DoesNotExist:
+        return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+    
+    if not user.check_password(request.data['password']):
+        return Response({"detail": "Password incorrect."}, status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        files = FileUpload.objects.filter(email=request.data['email'])
+    except FileUpload.DoesNotExist:
+        return Response({"detail": "Files not found."}, status=status.HTTP_404_NOT_FOUND)
+    
+    serializer = FileUploadSerializer(instance=files, many=True)
+    return Response({"file": serializer.data})
+#---------------------------------------------------Djoser Code ends---------------------------------------------------#
