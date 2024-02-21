@@ -1,0 +1,48 @@
+{% extends 'Authentication/basic.html' %}
+{% load static %}
+        {% block title %}2-Factor Authentication Login{% endblock %}
+
+{% block body %}
+<body class="login-page">
+    <div class="login-header box-shadow">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
+            <div class="brand-logo">
+                <a href="/signin">
+                    <img src="{% static 'vendors/images/deskapp-logo.svg' %}" alt="">
+                </a>
+            </div>
+            <div class="login-menu">
+                <ul>
+                    <li><a href="/signup">Register</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% if messages %}
+        {% for message in messages%}
+            <div class="alert alert-{{message.tags}}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+    <div class="container"><br>
+        <div class="row">
+            <div class="col-lg-5 col-md-7 mx-auto my-auto">
+                <div class="card">
+                    <div class="card-body px-lg-5 py-lg-5 text-center">
+                        <h2 class="text-center text-primary">2FA Security</h2><br>
+                        <p class="mb-4">Enter OTP from Google Authenticator App.</p>
+                        <form method="post" action="{% url 'two_factor_authentication' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="email" value="{{ email }}">
+                            <input type="hidden" name="internal_otp" value="{{ internal_otp }}">
+                            <input class="form-control form-control-lg" type="text" name="otp" placeholder="Enter OTP"><br>
+                            <div class="text-center">
+                                <button type="submit" class="btn btn-primary btn-lg btn-block">Verify</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+{% endblock %}

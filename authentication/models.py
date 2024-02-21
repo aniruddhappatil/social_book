@@ -1,4 +1,3 @@
-from datetime import datetime
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
@@ -21,6 +20,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     lname = models.CharField(max_length = 20)
     dob = models.DateField(null = True)
     public_visibility = models.BooleanField (default = True)
+    otp_secret = models.CharField(max_length = 20, null=True)
     
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -31,6 +31,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.email
     
 class FileUpload(models.Model):
+    email = models.EmailField(_("email address"))
     file_title = models.CharField(max_length = 30)
     file_desc = models.CharField(max_length = 100)
     cost = models.DecimalField(max_digits = 10,  decimal_places = 2, default = 0.00)

@@ -1,10 +1,15 @@
+import base64
 from datetime import datetime
+from functools import wraps
+import io
 import re
 from django.shortcuts import redirect, render
 from django.http import HttpResponse
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth import get_user_model
+from django.urls import reverse
+import pyotp
 from .models import CustomUser, FileUpload
 from .forms import UploadFileForm
 from django.core.exceptions import ValidationError
@@ -12,59 +17,56 @@ from django.core.validators import validate_email
 from django.contrib.auth.password_validation import validate_password
 from django.utils.timezone import now
 from django.utils import timezone
-
-# Connect the decorator to user_logged_in and user_logged_out signals
-#user_logged_in.connect(log_login_logout)
-#user_logged_out.connect(log_login_logout)
+import qrcode
 
 
-def user_list(request):
+#---------------------------------------------------Login Code with 2 Factor Authentication starts---------------------------------------------------#
+def signin(request):
     if request.method == "POST":
-        query = request.POST.get('query')
-        visibility = request.POST.get('visibility')
-        if visibility == "public":
-            public_visibility = True
+        email = request.POST.get('email')
+        pass1 = request.POST.get('pass1')
+        user = authenticate(email = email, password = pass1)
+    
+        if user != None:
+            login(request, user)
+            return redirect(reverse('two_factor_authentication') + f'?email={email}')
         else:
-            public_visibility = False
-        users = CustomUser.objects.filter(uname__icontains=query, public_visibility=public_visibility)
-    else:
-        users = CustomUser.objects.all()
-    #users = CustomUser.objects.filter(public_visibility=True)
-    return render(request, "authentication/user_list.html", {"users": users})
-
-def home(request):
+            messages.error(request, "Bad Credentials")
     return render(request, "authentication/signin.html")
 
-def file_upload(request):
-    if request.method == "POST":
-        form = UploadFileForm(request.POST, request.FILES)
-        #return HttpResponse(form.errors)
-        if form.is_valid():
-            if request.FILES['file'].name.endswith(('.pdf','.jpg', '.jpeg')):
-                form.save()
-                messages.success(request, "File Uploaded successfully!")
-                return render(request,"authentication/file_management.html")
-            else:
-                messages.error(request, "Please upload PDF/JPEG image only.")  # Handle other file types if needed
-                return render(request, 'authentication/file_management.html')
+def two_factor_authentication(request):
+    email = request.GET.get("email")
+    if request.method == 'POST':
+        email = request.POST.get("email")
+        internal_otp = request.POST.get("internal_otp")
+        if verify_otp(request):
+            request.session['email'] = email #email = request.session.get("email")
+            messages.success(request, 'OTP verified successfully.')
+            return render(request, "authentication/index2.html", {"email": email})
+        else:
+            messages.error(request, 'Invalid OTP. Please try again.')
+            return redirect(reverse('two_factor_authentication') + f'?email={email}')
     else:
-        form = UploadFileForm()
-    return render(request,"authentication/file_management.html")
+        internal_otp = generate_otp(email)
+    return render(request, 'authentication/2FA.html', {'email': email, 'internal_otp': internal_otp})
     
-def get_all_files(request):
-    #uploaded_files = FileUpload.objects.all()
-    #return HttpResponse(uploaded_files)
-    #return render(request,"authentication/file_management.html", {'uploaded_files': uploaded_files})
-    
-    query = request.GET.get('query')
-    files = FileUpload.objects.filter(file_title__icontains=query)
-    for file in files:
-        if file.file.url.endswith('.pdf'):
-            file.file_type = 'pdf'
-        elif file.file.url.endswith(('.jpg', '.jpeg')):
-            file.file_type = 'image'
-            
-    return render(request, 'authentication/file_management.html', {'query': query, 'files': files})
+
+def generate_otp(email):
+    users = CustomUser.objects.get(email=email)
+    otp_secret = users.otp_secret
+    totp = pyotp.TOTP(otp_secret)
+    return totp.now()
+
+def verify_otp(request):
+    email = request.POST.get("email")
+    otp = request.POST.get('otp')
+    users = CustomUser.objects.get(email=email)
+    otp_secret = users.otp_secret
+    totp = pyotp.TOTP(otp_secret)
+    return totp.verify(otp)
+
+#---------------------------------------------------Loginin Code with 2 Factor Authentication ends---------------------------------------------------#
+#---------------------------------------------------Signup Code with 2 Factor Authentication starts---------------------------------------------------#
 
 def signup(request):
     User = get_user_model()
@@ -125,33 +127,183 @@ def signup(request):
             messages.error(request, "You must be at least 18 years old to sign up.")
             return render(request, "authentication/signup.html")
         
-        myuser = CustomUser.objects.create_user(email=email, username=username, password=pass1, fname=fname, lname=lname, dob = dob, public_visibility = visibility_flag)
+        secret_key = pyotp.random_base32()
+
+        myuser = CustomUser.objects.create_user(email=email, username=username, password=pass1, fname=fname, lname=lname, dob = dob, public_visibility = visibility_flag, otp_secret = secret_key)
         myuser.save()
-        messages.success(request, "Account successfully created.")
-        return redirect("http://127.0.0.1:8000/signin/")
+
+        return redirect(reverse('two_factor_authentication_signup') + f'?email={email}')
     
     return render(request, "authentication/signup.html")
-
-def signin(request):
-    if request.method == "POST":
-        username = request.POST.get('uname')
-        pass1 = request.POST.get('pass1')
-
-        user = authenticate(username = username, password = pass1)
-        #return HttpResponse(f"user:{user}")
-
-        if user != None:
-            login(request, user)
-            fname = user.fname
-            lname = user.lname
-            messages.success(request, "You have logged in successfully.")
-            return render(request, "authentication/index2.html")
-        else:
-            messages.error(request, "Bad Credentials")
-    return render(request, "authentication/signin.html")
     
 
+def two_factor_authentication_signup(request):
+    user = request.GET.get("email")
+    users = CustomUser.objects.get(email=user)
+    secret_key = users.otp_secret
+    # Create a TOTP object
+    totp = pyotp.TOTP(secret_key)
+    totp_uri = totp.provisioning_uri(user)
+     # Generate the QR code image
+    img = qrcode.make(totp_uri)
+
+    # Convert the image to base64 format
+    img_buffer = io.BytesIO()
+    img.save(img_buffer, format="PNG")
+    img_buffer.seek(0)
+    qr_code_data = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
+
+    return render(request, 'authentication/2FA_signup.html', {'qr_code_data': qr_code_data})
+
+def created_account(request):
+    messages.success(request, "Account successfully created.")
+    return redirect("http://127.0.0.1:8000/signin/")
+    
+#---------------------------------------------------Signup Code with 2 Factor Authentication ends---------------------------------------------------#
+#---------------------------------------------------Finding list of users in database code starts---------------------------------------------------#
+def user_list(request):
+    if request.method == "POST":
+        query = request.POST.get('query')
+        visibility = request.POST.get('visibility')
+        if visibility == "public":
+            public_visibility = True
+        else:
+            public_visibility = False
+        users = CustomUser.objects.filter(uname__icontains=query, public_visibility=public_visibility)
+    else:
+        users = CustomUser.objects.all()
+    return render(request, "authentication/user_list.html", {"users": users})
+#---------------------------------------------------Finding list of users in database code ends---------------------------------------------------#
+
+def home(request):
+    return render(request, "authentication/signin.html")
+
+#---------------------------------------------------File Management code starts---------------------------------------------------#
+def file_upload(request):
+    email = request.session.get("email")
+    if request.method == "POST":
+        form = UploadFileForm(request.POST, request.FILES)
+        #return HttpResponse(form.errors)
+        if form.is_valid():
+            if request.FILES['file'].name.endswith(('.pdf','.jpg', '.jpeg')):
+                form.save()
+                messages.success(request, "File Uploaded successfully!")
+                return render(request,"authentication/file_management.html", {"email": email})
+            else:
+                messages.error(request, "Please upload PDF/JPEG image only.") 
+                return render(request, 'authentication/file_management.html', {"email": email})
+    else:
+        form = UploadFileForm()
+    return render(request,"authentication/file_management.html", {"email": email})
+    
+def get_all_files(request):
+    query = request.GET.get('query')
+    files = FileUpload.objects.filter(file_title__icontains=query, email=request.session.get("email"))
+
+    for file in files:
+        if file.file.url.endswith('.pdf'):
+            file.file_type = 'pdf'
+        elif file.file.url.endswith(('.jpg', '.jpeg')):
+            file.file_type = 'image'
+            
+    return render(request, 'authentication/view_file.html', {'query': query, 'files': files})
+#---------------------------------------------------File Management code ends---------------------------------------------------#
+#---------------------------------------------------Wrapper View File code starts---------------------------------------------------#
+def check_uploaded_files(view_func):
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        # Check if the user has uploaded any files
+        email = request.session.get("email")
+        if FileUpload.objects.filter(email=email).exists():
+            # User has uploaded files, allow access to the view
+            return view_func(request, *args, **kwargs)
+        else:
+            # User has not uploaded any files, redirect to "Upload Books" section
+            messages.error(request, "Please upload Image/PDF files first.") 
+            return redirect('file_upload')  # Replace 'upload_books' with your URL name for the upload books section
+    return wrapper
+
+@check_uploaded_files
+def view_files(request):
+    query = request.GET.get('query')
+    files = FileUpload.objects.filter(email=request.session.get("email"))
+    for file in files:
+        if file.file.url.endswith('.pdf'):
+            file.file_type = 'pdf'
+        elif file.file.url.endswith(('.jpg', '.jpeg')):
+            file.file_type = 'image'
+            
+    return render(request, 'authentication/view_file.html', {'query': query, 'files': files})
+#---------------------------------------------------Wrapper View File code ends---------------------------------------------------#
+#---------------------------------------------------Sign Out code starts---------------------------------------------------#
 def signout(request):
+    request.session['email'] = None
     logout(request)
     messages.success(request, "You have been logged out successfully.")
     return render(request, "authentication/signin.html")
+#---------------------------------------------------Sign Out code ends---------------------------------------------------#
+
+''' Tried using email but received error about SMTP saying: smtplib.SMTPAuthenticationError: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8  https://support.google.com/mail/?p=BadCredentials bo6-20020a17090b090600b00297022db05dsm231705pjb.40 - gsmtp')
+from django.contrib.auth import login
+from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.utils.crypto import get_random_string
+
+def signin(request):
+    if request.method == "POST":
+        email = request.POST.get('email')
+        pass1 = request.POST.get('pass1')
+        #email = request.POST.get('email')
+        user = authenticate(username = email, password = pass1)
+
+        #user_email = CustomUser.objects.get(email=email)
+        if user: #and user_email:
+            token = get_random_string(length=32)  # Generate a random token
+            user.verification_token = token  # Store token in user's profile or custom model
+            user.save()
+            send_verification_email(user.email, token)  # Send verification email
+            messages.success(request, "Verification email has been sent to you. Please check your email.")
+            return render(request, '2FA.html')
+            login(request, user)
+            return render(request, "authentication/2FA.html")   
+        else:
+            messages.error(request, "Bad Credentials")
+    return render(request, "authentication/signin.html")
+
+def email_login(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        # Perform custom authentication logic using the provided email address
+        user = CustomUser.objects.get(email=email)
+        if user:
+            token = get_random_string(length=32)  # Generate a random token
+            user.verification_token = token  # Store token in user's profile or custom model
+            user.save()
+            send_verification_email(email, token)  # Send verification email
+            messages.success(request, "Verification email has been sent to you. Please check your email.")
+            return render(request, '2FA.html')
+    return render(request, 'login.html')
+
+def verify_email(request):
+    try:
+        token = request.POST.get('token')
+        user = CustomUser.objects.get(CustomUser__verification_token=token)
+        user.verification_token = None  # Clear the token after verification
+        user.verified = True  # Mark user as verified
+        user.save()
+        login(request, user)  # Log in the user
+        messages.success(request, "Logged in successfully!")
+        return render(request, 'authentication/index2.html')  # Redirect to dashboard upon successful verification
+    except User.DoesNotExist:
+        messages.alert(request, "Wrong Token. Please try logging in again.")
+        return render(request, 'authentication/signin.html')
+
+def send_verification_email(email, token):
+    #verification_link = f'http://social_book.com/verify/{token}/'  # Construct the verification link with the token
+    send_mail(
+        'Social Book Email Verification', #subject
+        f'Copy the token and paste it on the website. {token}', #content
+        settings.EMAIL_HOST_USER, #from
+        [email], #To
+        fail_silently=False,
+    )'''

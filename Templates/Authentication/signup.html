@@ -35,7 +35,7 @@
                     </div>
                     <div class="col-md-6 col-lg-5">
                         <div class="register-box bg-white box-shadow border-radius-10">
-                                <h5 class="text-center text-primary">Basic Account Credentials</h5>
+                                <h3 class="text-center text-primary">Basic Account Credentials</h3><br>
                                 <form name="adduser" method="post">
                                     {% csrf_token %}
                                     <section>
@@ -91,8 +91,9 @@
                                             </div>
 
                                             <div class="input-group mb-0">
-                                                <button class="btn btn-outline-primary btn-lg btn-block" formmethod="post" href="/signup">Create Account</button>
-                                                <!-- <a class="btn btn-outline-primary btn-lg btn-block" href="/signup">Sign Up</a> -->
+                                                <button class="btn btn-outline-primary btn-lg btn-block" formmethod="post" href="/two_factor_authentication">Create Account</button>
+                                                <!--<button class="btn btn-outline-primary btn-lg btn-block" formmethod="post" href="/signup">Create Account</button>
+                                                 <a class="btn btn-outline-primary btn-lg btn-block" href="/signup">Sign Up</a> -->
                                             </div>
                                         </div>
                                     </section>
